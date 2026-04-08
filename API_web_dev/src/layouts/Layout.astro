@@ -1,0 +1,27 @@
+---
+
+import Header from "../components/Header.astro"
+import Siol from "../components/Soil.astro"
+---
+
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="icon" href="/favicon.ico" />
+		<link rel="stylesheet" href="/styles/global.css" />
+		<meta name="generator" content={Astro.generator} />
+		<title>Astro Basics</title>
+	</head>
+	<body>
+		
+		<slot />
+
+		<Header/>
+		<Siol/>
+	</body>
+</html>
+

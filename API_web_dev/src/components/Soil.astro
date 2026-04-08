@@ -1,0 +1,154 @@
+<ul class="garden-container">
+    <li class="planter-box">
+        
+        <!-- Bovenkant -->
+        <ul class="planter-top">
+            <ul class="soil-grid">
+                <li class="soil-slot"></li>
+                <li class="soil-slot"></li>
+                <li class="soil-slot"></li>
+                <li class="soil-slot"></li>
+                <li class="soil-slot"></li>
+                <li class="soil-slot"></li>
+                <li class="soil-slot"></li>
+                <li class="soil-slot"></li>
+                <li class="soil-slot"></li>
+            </ul>
+        </ul>
+        
+        <!-- Voorkant -->
+        <li class="planter-front"></li>
+        
+        <!-- Zijkant -->
+        <li class="planter-side"></li>
+        
+    </li>
+</ul>
+<style>
+   
+    .garden-container {
+        perspective: 800px;
+    }
+    .planter-box {
+        position: relative;
+        transform-style: preserve-3d;
+        transform: rotateX(55deg) rotateZ(-45deg);
+        width: 280px;
+        height: 280px;
+    }
+    /* Bovenkant met aarde */
+    .planter-top {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, #5D4037 0%, #4E342E 50%, #3E2723 100%);
+        border-radius: 12px;
+        border: 8px solid #8B5A2B;
+        box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.4);
+        transform: translateZ(40px);
+    }
+    .soil-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        padding: 12px;
+        height: 100%;
+    }
+    .soil-slot {
+        background: linear-gradient(180deg, #4E342E 0%, #3E2723 100%);
+        border-radius: 8px;
+        box-shadow: 
+            inset 0 4px 8px rgba(0, 0, 0, 0.4),
+            inset 0 -2px 4px rgba(139, 90, 43, 0.2);
+        position: relative;
+    }
+    /* Aarde textuur */
+    .soil-slot::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-image: 
+            radial-gradient(circle at 25% 25%, #6D4C41 2px, transparent 2px),
+            radial-gradient(circle at 75% 60%, #5D4037 2px, transparent 2px),
+            radial-gradient(circle at 50% 80%, #6D4C41 1px, transparent 1px),
+            radial-gradient(circle at 20% 70%, #4E342E 1px, transparent 1px);
+        border-radius: 8px;
+        opacity: 0.5;
+    }
+    /* Voorkant van de plantenbak */
+    .planter-front {
+        position: absolute;
+        width: 100%;
+        height: 40px;
+        background: linear-gradient(180deg, #A0522D 0%, #8B4513 50%, #6B3E0A 100%);
+        border-radius: 0 0 8px 8px;
+        transform: rotateX(-90deg) translateZ(-240px) translateY(-20px);
+        box-shadow: 
+            inset 0 2px 4px rgba(255, 255, 255, 0.2),
+            inset 0 -4px 8px rgba(0, 0, 0, 0.3);
+    }
+    /* Houtnerf textuur voorkant */
+    .planter-front::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: repeating-linear-gradient(
+            90deg,
+            transparent 0px,
+            transparent 30px,
+            rgba(0, 0, 0, 0.1) 30px,
+            rgba(0, 0, 0, 0.1) 32px
+        );
+        border-radius: 0 0 8px 8px;
+    }
+    /* Rechterkant van de plantenbak */
+    .planter-side {
+        position: absolute;
+        width: 40px;
+        height: 100%;
+        background: linear-gradient(180deg, #8B4513 0%, #6B3E0A 50%, #5A3209 100%);
+        border-radius: 0 8px 8px 0;
+        transform: rotateY(90deg) translateZ(240px) translateX(20px);
+        box-shadow: 
+            inset 2px 0 4px rgba(255, 255, 255, 0.1),
+            inset -4px 0 8px rgba(0, 0, 0, 0.3);
+    }
+    /* Houtnerf textuur zijkant */
+    .planter-side::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: repeating-linear-gradient(
+            180deg,
+            transparent 0px,
+            transparent 30px,
+            rgba(0, 0, 0, 0.1) 30px,
+            rgba(0, 0, 0, 0.1) 32px
+        );
+        border-radius: 0 8px 8px 0;
+    }
+    /* Rand bovenop de bak */
+    .planter-top::after {
+        content: '';
+        position: absolute;
+        top: -8px;
+        left: -8px;
+        right: -8px;
+        bottom: -8px;
+        border: 8px solid transparent;
+        border-radius: 12px;
+        box-shadow: 
+            0 4px 8px rgba(0, 0, 0, 0.2),
+            0 8px 16px rgba(0, 0, 0, 0.1);
+        pointer-events: none;
+    }
+</style>
