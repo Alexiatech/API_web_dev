@@ -1,7 +1,9 @@
 ---
 
-import Header from "../components/Header.astro"
-import Siol from "../components/Soil.astro"
+import Header from "../components/Header.astro";
+import Siol from "../components/Soil.astro";
+import Zoek from "../components/Zoek.astro";
+import Geo from "../components/Geo.astro";
 ---
 
 
@@ -19,7 +21,8 @@ import Siol from "../components/Soil.astro"
 	<body>
 		
 		<slot />
-
+		<Zoek/>
+		<Geo/>
 		<Header/>
 		<Siol/>
 	</body>

@@ -15,15 +15,7 @@
                 <li class="soil-slot"></li>
             </ul>
         </ul>
-        
-        <!-- Voorkant -->
-        <li class="planter-front"></li>
-        
-        <!-- Zijkant -->
-        <li class="planter-side"></li>
-        
-    </li>
-</ul>
+
 <style>
    
     .garden-container {
@@ -91,64 +83,6 @@
             inset 0 -4px 8px rgba(0, 0, 0, 0.3);
     }
     /* Houtnerf textuur voorkant */
-    .planter-front::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: repeating-linear-gradient(
-            90deg,
-            transparent 0px,
-            transparent 30px,
-            rgba(0, 0, 0, 0.1) 30px,
-            rgba(0, 0, 0, 0.1) 32px
-        );
-        border-radius: 0 0 8px 8px;
-    }
-    /* Rechterkant van de plantenbak */
-    .planter-side {
-        position: absolute;
-        width: 40px;
-        height: 100%;
-        background: linear-gradient(180deg, #8B4513 0%, #6B3E0A 50%, #5A3209 100%);
-        border-radius: 0 8px 8px 0;
-        transform: rotateY(90deg) translateZ(240px) translateX(20px);
-        box-shadow: 
-            inset 2px 0 4px rgba(255, 255, 255, 0.1),
-            inset -4px 0 8px rgba(0, 0, 0, 0.3);
-    }
-    /* Houtnerf textuur zijkant */
-    .planter-side::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: repeating-linear-gradient(
-            180deg,
-            transparent 0px,
-            transparent 30px,
-            rgba(0, 0, 0, 0.1) 30px,
-            rgba(0, 0, 0, 0.1) 32px
-        );
-        border-radius: 0 8px 8px 0;
-    }
-    /* Rand bovenop de bak */
-    .planter-top::after {
-        content: '';
-        position: absolute;
-        top: -8px;
-        left: -8px;
-        right: -8px;
-        bottom: -8px;
-        border: 8px solid transparent;
-        border-radius: 12px;
-        box-shadow: 
-            0 4px 8px rgba(0, 0, 0, 0.2),
-            0 8px 16px rgba(0, 0, 0, 0.1);
-        pointer-events: none;
-    }
+   
+
 </style>
