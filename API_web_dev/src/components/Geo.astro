@@ -1,5 +1,5 @@
 ---
-
+const googleMapsKey = import.meta.env.PUBLIC_GOOGLE_TOKEN;
 ---
 
   <gmp-map
@@ -11,7 +11,7 @@
 
   <script 
     async
-    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyADtxocpaKxqEjtbVmofwToQrn6WaSMQLg&libraries=maps,marker&v=beta">
+    src="https://maps.googleapis.com/maps/api/js?key==${googleMapsKey}&libraries=maps,marker&v=beta">
   </script>
 
   <style>
@@ -22,5 +22,5 @@
         border-radius: 23px;
     }
 
-    
+
   </style>
