@@ -3,7 +3,7 @@
 // de detail pagina kunnen maken.
 
 export async function POST({ request }) {
-    const PLANTNET_TOKEN = import.meta.env.PUBLIC_PLANTNET_TOKEN;
+    const PLANTNET_TOKEN = import.meta.env.PLANTNET_TOKEN;
     const TREFLE_TOKEN = import.meta.env.PUBLIC_TREFLE_TOKEN;
 
     // ------- Stap 1: ontvang de foto van de browser -------
