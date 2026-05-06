@@ -61,8 +61,8 @@
     const herkenKnop = document.getElementById("herken-knop");
     const orgaanSelect = document.getElementById("orgaan-select");
     const statusEl = document.getElementById("status");
-    // Eigen ID (scan-resultaten) - beschrijvend en uniek binnen de
-    // single-page layout waar alle views tegelijk in de DOM staan.
+    // Eigen ID (scan-resultaten) zodat het niet conflicteert met de
+    // ul#resultaten in Zoek.astro - beide views staan tegelijk in de DOM.
     const resultatenEl = document.getElementById("scan-resultaten");
 
     let stream = null;
@@ -173,36 +173,28 @@
         // Bouw per match een kaartje met dezelfde structuur als SoortenLijst
         // zodat de styling consistent is. De match-balk gebruikt een CSS
         // custom property --p (percentage) die door de ::before wordt opgepakt.
-        //
-        // De koppeling tussen Pl@ntNet en Trefle is al gedaan in
-        // /api/identify.js: daar wordt op wetenschappelijke naam in Trefle
-        // gezocht, en het trefle_id meegegeven. Hebben we een trefle_id, dan
-        // wikkelen we het kaartje in een <a> naar /soorten/{id} (zelfde URL
-        // patroon als in SoortenLijst.astro). Geen match? Dan een gewone
-        // <article> zonder link.
-        //
-        // Bron custom property pattern: https://web.dev/articles/at-property
+        // Bron custom property pattern:
+        // https://web.dev/articles/at-property
         results.forEach((r) => {
             const percentage = Math.round((r.score ?? 0) * 100);
             const naam =
                 r.trefle_common_name ?? r.common_name ?? r.scientific_name;
             const wet = r.scientific_name ?? "";
-            const foto = r.trefle_image
-                ? `<img src="${r.trefle_image}" alt="${naam}" loading="lazy" />`
+            const foto = r.image_url
+                ? `<img src="${r.image_url}" alt="${naam}" loading="lazy" />`
                 : `<span class="geen-foto">No photo</span>`;
 
-            const inhoud = `
-                ${foto}
-                <strong>${naam}</strong>
-                <em>${wet}</em>
-                <span class="balk" style="--p: ${percentage}%">${percentage}%</span>
-            `;
-
-            const wrapper = r.trefle_id
-                ? `<a href="/soorten/${r.trefle_id}">${inhoud}</a>`
-                : `<article>${inhoud}</article>`;
-
-            resultatenEl.insertAdjacentHTML("beforeend", `<li>${wrapper}</li>`);
+            resultatenEl.insertAdjacentHTML(
+                "beforeend",
+                `<li>
+                    <article>
+                        ${foto}
+                        <strong>${naam}</strong>
+                        <em>${wet}</em>
+                        <span class="balk" style="--p: ${percentage}%">${percentage}%</span>
+                    </article>
+                </li>`
+            );
         });
 
         // Scroll naar de resultaten zodat de gebruiker ze direct ziet.

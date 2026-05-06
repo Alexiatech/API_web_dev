@@ -1,6 +1,24 @@
 // API route die een foto ontvangt, deze naar Pl@ntNet stuurt voor herkenning,
 // en dan voor de top 3 resultaten Trefle doorzoekt zodat we een link naar
 // de detail pagina kunnen maken.
+//
+// CORS: omdat de browser deze endpoint aanroept met een POST + FormData,
+// stuurt 'ie eerst een "preflight" OPTIONS request om te checken of dat mag.
+// Zonder OPTIONS handler + Access-Control-* headers krijg je in productie
+// (Render/Netlify) een 403 "Cross-site" fout.
+// Bron: https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
+
+// Preflight: browser vraagt "mag ik POSTen naar deze URL?" - wij zeggen ja.
+export function OPTIONS() {
+    return new Response(null, {
+        status: 204,
+        headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+        },
+    });
+}
 
 export async function POST({ request }) {
     const PLANTNET_TOKEN = import.meta.env.PLANTNET_TOKEN;
@@ -106,10 +124,15 @@ export async function POST({ request }) {
     return jsonRespons({ results: resultaten });
 }
 
-// Kleine helper zodat we niet elke keer dezelfde Response hoeven te typen
+// Kleine helper zodat we niet elke keer dezelfde Response hoeven te typen.
+// Access-Control-Allow-Origin hoort ook bij elk echte antwoord (niet alleen
+// de OPTIONS preflight) - anders blokkeert de browser het alsnog.
 function jsonRespons(data, status = 200) {
     return new Response(JSON.stringify(data), {
         status,
-        headers: { "Content-Type": "application/json" },
+        headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+        },
     });
 }
