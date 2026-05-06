@@ -36,8 +36,6 @@ const alleInfo = [
     { label: "Scientific name", waarde: plant.scientific_name },
     { label: "Family", waarde: plant.family_common_name ?? pakNaam(plant.family) },
     { label: "Genus", waarde: pakNaam(plant.genus) },
-    { label: "Year", waarde: plant.year },
-    { label: "Author", waarde: plant.author },
     { label: "Status", waarde: plant.status },
     { label: "Rank", waarde: plant.rank },
     { label: "Observations", waarde: soort.observations },
@@ -57,8 +55,6 @@ const alleInfo = [
     { label: "Fruit color", waarde: fruit.color },
     { label: "Light (0-10)", waarde: growth.light },
     { label: "Humidity", waarde: growth.atmospheric_humidity },
-    { label: "pH min", waarde: growth.ph_minimum },
-    { label: "pH max", waarde: growth.ph_maximum },
     { label: "Min. temperature (°C)", waarde: growth.minimum_temperature?.deg_c },
     { label: "Max. temperature (°C)", waarde: growth.maximum_temperature?.deg_c },
 ];
