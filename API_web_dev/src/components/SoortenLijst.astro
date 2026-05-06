@@ -3,7 +3,7 @@
 // Wordt ingeladen vanuit src/pages/soorten.astro. Alle logica + styling zit hier,
 // zodat de page zelf alleen maar een dunne wrapper is.
 
-const TOKEN = import.meta.env.PUBLIC_TREFLE_TOKEN;
+const TOKEN = import.meta.env.TREFLE_TOKEN;
 
 // Haal filter waardes uit de URL (?q=...&sorteer=...)
 const url = new URL(Astro.request.url);

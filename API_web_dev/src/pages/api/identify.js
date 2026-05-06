@@ -4,7 +4,7 @@
 
 export async function POST({ request }) {
     const PLANTNET_TOKEN = import.meta.env.PLANTNET_TOKEN;
-    const TREFLE_TOKEN = import.meta.env.PUBLIC_TREFLE_TOKEN;
+    const TREFLE_TOKEN = import.meta.env.TREFLE_TOKEN;
 
     // ------- Stap 1: ontvang de foto van de browser -------
     let formData;
