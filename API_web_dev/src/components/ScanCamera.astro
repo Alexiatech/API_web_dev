@@ -180,20 +180,30 @@
             const naam =
                 r.trefle_common_name ?? r.common_name ?? r.scientific_name;
             const wet = r.scientific_name ?? "";
-            const foto = r.image_url
-                ? `<img src="${r.image_url}" alt="${naam}" loading="lazy" />`
+            // identify.js geeft de Trefle foto terug als trefle_image
+            // (niet image_url) - dat is de officiele plant foto. Pl@ntNet
+            // levert geen image_url in de search response.
+            const foto = r.trefle_image
+                ? `<img src="${r.trefle_image}" alt="${naam}" loading="lazy" />`
                 : `<span class="geen-foto">No photo</span>`;
+
+            // Als Trefle een match had: kaart wordt een <a> naar de detail
+            // pagina (/soorten/{id}). Geen match = niet klikbaar (er is
+            // immers geen detail pagina om naartoe te gaan).
+            const inhoud = `
+                ${foto}
+                <strong>${naam}</strong>
+                <em>${wet}</em>
+                <span class="balk" style="--p: ${percentage}%">${percentage}%</span>
+            `;
+
+            const kaart = r.trefle_id
+                ? `<a href="/soorten/${r.trefle_id}">${inhoud}</a>`
+                : `<article>${inhoud}</article>`;
 
             resultatenEl.insertAdjacentHTML(
                 "beforeend",
-                `<li>
-                    <article>
-                        ${foto}
-                        <strong>${naam}</strong>
-                        <em>${wet}</em>
-                        <span class="balk" style="--p: ${percentage}%">${percentage}%</span>
-                    </article>
-                </li>`
+                `<li>${kaart}</li>`
             );
         });
 

@@ -21,6 +21,16 @@
         Scan or search for a plant to add one.
     </p>
 
+    <!-- Notificatie-toestemming knop: alleen zichtbaar als de gebruiker
+         nog geen keuze heeft gemaakt (Notification.permission === "default")
+         en er minstens 1 plant in de tuin staat. Browsers vereisen een
+         user gesture (klik) voordat we permission mogen vragen, daarom
+         een knop i.p.v. automatisch.
+         Bron: https://developer.mozilla.org/en-US/docs/Web/API/Notification/requestPermission_static -->
+    <button class="notif-knop" type="button" hidden>
+        Enable water reminders
+    </button>
+
     <!-- Stats balk: kort overzicht van totaal aantal planten, hoeveel
          er water nodig hebben, en wanneer de eerstvolgende waterbeurt is.
          Wordt client-side gevuld; verborgen als de tuin leeg is. -->
@@ -34,7 +44,7 @@
             <span>need water</span>
         </li>
         <li>
-            <p><strong data-stat="volgende">dash;</strong></p>
+            <p><strong data-stat="volgende">&mdash;</strong></p>
             <span>next</span>
         </li>
     </ul>
@@ -53,10 +63,16 @@
         vraagtWater,    // ← tuin.js: checkt of een plant water nodig heeft
         dagenSindsWater, // ← tuin.js: berekent dagen sinds laatste waterbeurt
     } from "../lib/tuin.js";
+    import {
+        huidigeStaat,             // ← notificaties.js: "default"/"granted"/"denied"/"unsupported"
+        vraagToestemming,         // ← notificaties.js: vraagt permission via user gesture
+        notificeerDorstigePlanten, // ← notificaties.js: vuurt notificaties voor dorstige planten
+    } from "../lib/notificaties.js";
 
     const lijstEl = document.querySelector(".tuin .plant-lijst");
     const leegEl = document.querySelector(".tuin .leeg");
     const statsEl = document.querySelector(".tuin .stats");
+    const notifKnop = document.querySelector(".tuin .notif-knop");
     const statTotaal = statsEl.querySelector('[data-stat="totaal"]'); // → vindt het totaal element van de planten
     const statDorstig = statsEl.querySelector('[data-stat="dorstig"]'); // → vindt het dorstig element
     const statVolgende = statsEl.querySelector('[data-stat="volgende"]'); // → vindt het volgende planten die water moeten hebben
@@ -97,6 +113,28 @@
         return { totaal: planten.length, dorstig, volgende };
     }
 
+    // Toon de "Enable water reminders" knop alleen als:
+    //  - de browser notificaties ondersteunt (geen iOS Safari < 16.4)
+    //  - de gebruiker nog geen keuze gemaakt heeft (staat === "default")
+    //  - er ten minste 1 plant in de tuin staat (anders niks om voor te
+    //    notificeren)
+    // Na klik vragen we permission; bij "granted" vuren we direct een
+    // notificatie voor eventueel al dorstige planten.
+    function updateNotifKnop(aantalPlanten) {
+        const staat = huidigeStaat();
+        notifKnop.hidden = !(staat === "default" && aantalPlanten > 0);
+    }
+
+    notifKnop.addEventListener("click", async () => {
+        const nieuweStaat = await vraagToestemming();
+        notifKnop.hidden = true;
+        if (nieuweStaat === "granted") {
+            // Meteen notificeren voor planten die nu al water willen,
+            // zodat de gebruiker direct effect ziet.
+            notificeerDorstigePlanten();
+        }
+    });
+
     function rendeer() {
         const planten = laden(); // ← tuin.js
 
@@ -105,12 +143,14 @@
             lijstEl.hidden = true;
             statsEl.hidden = true;
             lijstEl.innerHTML = "";
+            updateNotifKnop(0);
             return;
         }
 
         leegEl.hidden = true;
         lijstEl.hidden = false;
         statsEl.hidden = false;
+        updateNotifKnop(planten.length);
 
         // Stats invullen. data-state="alert" markeert het dorstig-cijfer
         // als > 0 zodat we het via CSS in de accent-kleur kunnen zetten.
@@ -251,6 +291,26 @@
         line-height: 1.5;
         color: var(--clr-muted);
         margin: 0;
+    }
+
+    /* Notificatie-toestemming knop: pill-vormige call-to-action in de
+       accent kleur. Verbergen via [hidden] attribute (script regelt dat). */
+    .tuin .notif-knop {
+        align-self: center;
+        padding: 0.6rem 1.2rem;
+        border: none;
+        border-radius: var(--radius-pill);
+        background: var(--clr-accent);
+        color: var(--clr-white);
+        font-size: var(--fs--1);
+        font-weight: 600;
+        cursor: pointer;
+        box-shadow: 0 2px 6px var(--clr-shadow);
+        transition: background 0.2s ease;
+    }
+
+    .tuin .notif-knop:hover {
+        background: var(--clr-accent-dark);
     }
 
 
