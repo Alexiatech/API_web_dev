@@ -1,30 +1,111 @@
 ---
+// Single-page layout: alle "views" staan op één pagina.
+// De bottom-nav wisselt via URL hash (#soorten / #scan / #tuin) zodat de
+// browser back/forward knop en bookmarks blijven werken.
+// Soorten is de default landingspagina (geen aparte home view meer).
 
 import Header from "../components/Header.astro";
-import Siol from "../components/Soil.astro";
-import Zoek from "../components/Zoek.astro";
-import Geo from "../components/Geo.astro";
+import SoortenLijst from "../components/SoortenLijst.astro";
+import ScanCamera from "../components/ScanCamera.astro";
+import AchtergrondBloemen from "../components/AchtergrondBloemen.astro";
+import MijnTuin from "../components/MijnTuin.astro";
 ---
-
 
 <!doctype html>
 <html lang="en">
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<link rel="stylesheet" href="/styles/global.css" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro Basics</title>
-	</head>
-	<body>
-		
-		<slot />
-		<Zoek/>
-		<Geo/>
-		<Header/>
-		<Siol/>
-	</body>
-</html>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="icon" href="/favicon.ico" />
+        <link rel="stylesheet" href="/styles/global.css" />
+        <meta name="generator" content={Astro.generator} />
+        <title>Plant App</title>
+    </head>
+    <body>
 
+       
+        <AchtergrondBloemen />
+
+        <!-- SOORTEN view (default landingspagina) -->
+        <section class="view" data-view="soorten">
+            <SoortenLijst />
+        </section>
+
+        <!-- SCAN view -->
+        <section class="view" data-view="scan">
+            <ScanCamera />
+        </section>
+
+        <!-- TUIN view - opgeslagen planten van de gebruiker -->
+        <section class="view" data-view="tuin">
+            <MijnTuin />
+        </section>
+
+        <Header />
+
+        <script>
+            import { notificeerDorstigePlanten } from "../lib/notificaties.js";
+
+            // View toggle op basis van URL hash (#soorten / #scan / #tuin)
+            const views = document.querySelectorAll(".view");
+            const navLinks = document.querySelectorAll(".bottom-nav a");
+
+            function toonView(naam) {
+                // Laat alleen de sectie zien die matcht
+                views.forEach((v) => {
+                    v.classList.toggle(
+                        "actief",
+                        v.dataset.view === naam
+                    );
+                });
+                // Update de actieve nav knop
+                navLinks.forEach((link) => {
+                    const target = (link.getAttribute("href") || "")
+                        .replace("#", "");
+                    link.classList.toggle("active", target === naam);
+                });
+                // Scroll naar boven - anders sta je halverwege
+                window.scrollTo({ top: 0 });
+                // Laat andere components weten welke view actief is
+                // (gebruikt door ScanCamera om de camera te starten/stoppen)
+                window.dispatchEvent(
+                    new CustomEvent("view-changed", { detail: { view: naam } })
+                );
+            }
+
+            function leesHash() {
+                // Default = soorten als er geen hash is (de "homepagina"
+                // van de app is nu het soorten-overzicht).
+                const huidig =
+                    location.hash.replace("#", "") || "soorten";
+                toonView(huidig);
+            }
+
+            window.addEventListener("hashchange", leesHash);
+            leesHash();
+
+            // Bij paginalaad én elke keer dat de tab weer zichtbaar
+            // wordt: check of planten water nodig hebben en stuur een
+            // browser notificatie. notificeerDorstigePlanten() doet zelf
+            // niets als er geen permission is, en heeft een dedup-check
+            // zodat dezelfde plant niet vaker dan eens per 12u meldt.
+            // Bron: https://developer.mozilla.org/en-US/docs/Web/API/Document/visibilitychange_event
+            notificeerDorstigePlanten();
+            document.addEventListener("visibilitychange", () => {
+                if (document.visibilityState === "visible") {
+                    notificeerDorstigePlanten();
+                }
+            });
+        </script>
+
+        <style is:global>
+            .view {
+                display: none;
+            }
+            .view.actief {
+                display: block;
+            }
+        </style>
+    </body>
+</html>

@@ -1,0 +1,439 @@
+---
+
+---
+
+<main class="scan-wrapper">
+    <h1 class="titel">Scan a plant</h1>
+    <p class="uitleg">
+        Point your camera at a flower or leaf and take a photo.
+    </p>
+
+    <div class="camera-box">
+        <!-- Live camera stream -->
+        <video
+            id="video"
+            autoplay
+            playsinline
+            muted
+            class="camera-view"
+        ></video>
+
+       
+        <img
+            id="foto-preview"
+            class="camera-view"
+            alt=""
+            hidden
+        />
+    </div>
+
+    <div class="knoppen">
+        <button id="foto-knop" class="knop-groot foto">Take photo</button>
+        <button id="opnieuw-knop" class="knop-groot opnieuw" hidden>Try again</button>
+        <button id="herken-knop" class="knop-groot herken" hidden>Identify plant</button>
+    </div>
+
+    <!-- Keuze wat er op de foto staat - Pl@ntNet werkt beter als je dit meegeeft -->
+    <label class="orgaan-keuze">
+        What's in the photo?
+        <select id="orgaan-select">
+            <option value="flower">Flower</option>
+            <option value="leaf">Leaf</option>
+            <option value="fruit">Fruit</option>
+            <option value="bark">Bark / stem</option>
+        </select>
+    </label>
+
+    <p id="status" class="status"></p>
+
+    <ul id="scan-resultaten" class="resultaten"></ul>
+</main>
+
+<script>
+    const video = document.getElementById("video");
+    // Canvas hoeven we niet in de HTML te zetten - is alleen tussenstap
+    // om een video frame naar een blob (foto) te converteren.
+    // Bron: https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/toBlob
+    const canvas = document.createElement("canvas");
+    const fotoPreview = document.getElementById("foto-preview");
+    const fotoKnop = document.getElementById("foto-knop");
+    const opnieuwKnop = document.getElementById("opnieuw-knop");
+    const herkenKnop = document.getElementById("herken-knop");
+    const orgaanSelect = document.getElementById("orgaan-select");
+    const statusEl = document.getElementById("status");
+    // Eigen ID (scan-resultaten) - beschrijvend en uniek binnen de
+    // single-page layout waar alle views tegelijk in de DOM staan.
+    const resultatenEl = document.getElementById("scan-resultaten");
+
+    let stream = null;
+    let genomenFoto = null;
+
+    async function startCamera() {
+        // Al actief? Niet opnieuw starten.
+        if (stream) return;
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: { ideal: "environment" } },
+                audio: false,
+            });
+            video.srcObject = stream;
+            // Sommige browsers starten autoplay niet als het element eerst
+            // verborgen was - daarom expliciet play() aanroepen.
+            try { await video.play(); } catch (_) { /* ignore */ }
+        } catch (e) {
+            console.error("Camera fout:", e);
+            statusEl.textContent =
+                "Couldn't open the camera. Allow access or try a different device.";
+            fotoKnop.disabled = true;
+        }
+    }
+
+    function stopCamera() {
+        if (stream) {
+            stream.getTracks().forEach((t) => t.stop());
+            stream = null;
+            video.srcObject = null;
+        }
+    }
+
+    fotoKnop.addEventListener("click", () => {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext("2d").drawImage(video, 0, 0);
+
+        canvas.toBlob(
+            (blob) => {
+                if (!blob) return;
+                genomenFoto = blob;
+                fotoPreview.src = URL.createObjectURL(blob);
+                fotoPreview.hidden = false;
+                video.hidden = true;
+                fotoKnop.hidden = true;
+                opnieuwKnop.hidden = false;
+                herkenKnop.hidden = false;
+            },
+            "image/jpeg",
+            0.9
+        );
+    });
+
+    opnieuwKnop.addEventListener("click", () => {
+        genomenFoto = null;
+        if (fotoPreview.src) URL.revokeObjectURL(fotoPreview.src);
+        fotoPreview.hidden = true;
+        video.hidden = false;
+        fotoKnop.hidden = false;
+        opnieuwKnop.hidden = true;
+        herkenKnop.hidden = true;
+        statusEl.textContent = "";
+        resultatenEl.innerHTML = "";
+    });
+
+    herkenKnop.addEventListener("click", async () => {
+        if (!genomenFoto) return;
+
+        statusEl.textContent = "Identifying...";
+        resultatenEl.innerHTML = "";
+        herkenKnop.disabled = true;
+
+        const formData = new FormData();
+        formData.append("image", genomenFoto, "plant.jpg");
+        formData.append("organ", orgaanSelect.value);
+
+        try {
+            const response = await fetch("/api/identify", {
+                method: "POST",
+                body: formData,
+            });
+            const data = await response.json();
+
+            if (data.error) {
+                statusEl.textContent = data.details
+                    ? `Error: ${data.error} - ${data.details}`
+                    : `Error: ${data.error}`;
+                return;
+            }
+
+            if (!data.results || data.results.length === 0) {
+                statusEl.textContent = "No plants recognized in this photo. Try a clearer photo or a different plant part.";
+                return;
+            }
+
+            statusEl.textContent = `${data.results.length} possible matches:`;
+            toonResultaten(data.results);
+        } catch (e) {
+            console.error(e);
+            statusEl.textContent = "Something went wrong. Please try again.";
+        } finally {
+            herkenKnop.disabled = false;
+        }
+    });
+
+    function toonResultaten(results) {
+        // Bouw per match een kaartje met dezelfde structuur als SoortenLijst
+        // zodat de styling consistent is. De match-balk gebruikt een CSS
+        // custom property --p (percentage) die door de ::before wordt opgepakt.
+        //
+        // De koppeling tussen Pl@ntNet en Trefle is al gedaan in
+        // /api/identify.js: daar wordt op wetenschappelijke naam in Trefle
+        // gezocht, en het trefle_id meegegeven. Hebben we een trefle_id, dan
+        // wikkelen we het kaartje in een <a> naar /soorten/{id} (zelfde URL
+        // patroon als in SoortenLijst.astro). Geen match? Dan een gewone
+        // <article> zonder link.
+        //
+        // Bron custom property pattern: https://web.dev/articles/at-property
+        results.forEach((r) => {
+            const percentage = Math.round((r.score ?? 0) * 100);
+            const naam =
+                r.trefle_common_name ?? r.common_name ?? r.scientific_name;
+            const wet = r.scientific_name ?? "";
+            const foto = r.trefle_image
+                ? `<img src="${r.trefle_image}" alt="${naam}" loading="lazy" />`
+                : `<span class="geen-foto">No photo</span>`;
+
+            const inhoud = `
+                ${foto}
+                <strong>${naam}</strong>
+                <em>${wet}</em>
+                <span class="balk" style="--p: ${percentage}%">${percentage}%</span>
+            `;
+
+            const wrapper = r.trefle_id
+                ? `<a href="/soorten/${r.trefle_id}">${inhoud}</a>`
+                : `<article>${inhoud}</article>`;
+
+            resultatenEl.insertAdjacentHTML("beforeend", `<li>${wrapper}</li>`);
+        });
+
+        // Scroll naar de resultaten zodat de gebruiker ze direct ziet.
+        // Bron: https://developer.mozilla.org/en-US/docs/Web/API/Element/scrollIntoView
+        resultatenEl.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    // Directe hashchange listener - simpeler en onafhankelijk van Layout.
+    // Als de hash #scan is, start camera. Anders: stop 'm.
+    function syncCamera() {
+        const huidig = location.hash.replace("#", "") || "home";
+        if (huidig === "scan") {
+            startCamera();
+        } else {
+            stopCamera();
+        }
+    }
+
+    window.addEventListener("hashchange", syncCamera);
+    // Initiële check (pagina kan al op #scan geladen zijn)
+    syncCamera();
+
+    // Extra: ook starten wanneer op de center-knop geklikt wordt,
+    // voor het geval de hash al #scan was (geen hashchange dan).
+    document.querySelectorAll('.bottom-nav a[href*="#scan"]').forEach((a) => {
+        a.addEventListener("click", () => {
+            // Kleine vertraging zodat de view eerst zichtbaar wordt
+            setTimeout(startCamera, 50);
+        });
+    });
+
+    window.addEventListener("pagehide", stopCamera);
+</script>
+
+<style is:global>
+    /* Tokens + body styling staan in public/styles/global.css */
+
+    @layer reset, layout, components;
+
+    @layer reset {
+        .scan-wrapper ul { list-style: none; padding: 0; margin: 0; }
+    }
+
+    @layer layout {
+        .scan-wrapper {
+            max-width: 600px;
+            margin: 0 auto;
+            /* extra padding-bottom zodat de bottom-nav niets afsnijdt */
+            padding: 1.5rem 1rem 7rem;
+            display: grid;
+            gap: 1rem;
+        }
+
+        .scan-wrapper .titel {
+            text-align: center;
+            color: var(--clr-primary);
+            margin: 0;
+            font-size: var(--fs-2);
+        }
+
+        .scan-wrapper .uitleg {
+            text-align: center;
+            color: var(--clr-muted);
+            margin: 0;
+        }
+    }
+
+    @layer components {
+        .camera-box {
+            background: black;
+            border-radius: var(--radius-xl);
+            overflow: hidden;
+            aspect-ratio: 3 / 4;
+            box-shadow: 0 4px 16px var(--clr-shadow);
+        }
+
+        .camera-view {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .knoppen {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .knop-groot {
+            flex: 1;
+            padding: 0.9rem;
+            border: none;
+            border-radius: var(--radius-pill);
+            font-size: var(--fs-0);
+            font-weight: 600;
+            cursor: pointer;
+            color: var(--clr-white);
+        }
+        .knop-groot.foto { background-color: var(--clr-primary); }
+        .knop-groot.foto:hover { background-color: var(--clr-primary-dark); }
+        .knop-groot.opnieuw { background-color: var(--clr-muted-grey); }
+        .knop-groot.opnieuw:hover { background-color: #777; }
+        .knop-groot.herken { background-color: var(--clr-accent); }
+        .knop-groot.herken:hover { background-color: var(--clr-accent-dark); }
+        .knop-groot:disabled { background-color: #ccc; cursor: not-allowed; }
+
+        .orgaan-keuze {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: var(--fs--1);
+            color: var(--clr-primary);
+            font-weight: 500;
+        }
+
+        .orgaan-keuze select {
+            flex: 1;
+            padding: 0.6rem 0.8rem;
+            border: 1px solid var(--clr-border);
+            border-radius: var(--radius-sm);
+            background: var(--clr-white);
+            font-size: var(--fs--1);
+            color: var(--clr-text);
+            font-family: inherit;
+            cursor: pointer;
+        }
+
+        .status {
+            text-align: center;
+            color: var(--clr-muted);
+            min-height: 1em;
+        }
+
+        /* Resultaten lijst - simpele grid, 2 kolommen op mobiel.
+           Gebruikt 1 class (.resultaten) op de ul en daarna alleen
+           descendant selectors. */
+        .resultaten {
+            display: grid;
+            gap: var(--gap);
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .resultaten li {
+            background: var(--clr-white);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            box-shadow: 0 4px 12px var(--clr-shadow);
+            transition: transform 0.2s ease;
+        }
+        .resultaten li:hover { transform: translateY(-4px); }
+
+        /* Wrapper (a of article) is een flexbox kolom: foto bovenaan,
+           dan naam, latijn, en de match-balk. */
+        .resultaten a,
+        .resultaten article {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .resultaten img,
+        .resultaten .geen-foto {
+            width: 100%;
+            height: 130px;
+            object-fit: cover;
+            display: block;
+        }
+
+        .resultaten .geen-foto {
+            background-color: var(--clr-bg-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--clr-muted);
+            font-size: var(--fs--1);
+        }
+
+        .resultaten strong {
+            padding: 0.8rem 0.8rem 0.2rem;
+            text-align: center;
+            font-weight: 600;
+            font-size: var(--fs--1);
+            color: var(--clr-primary);
+        }
+
+        .resultaten em {
+            padding: 0 0.8rem 0.5rem;
+            text-align: center;
+            font-style: italic;
+            font-size: var(--fs--2);
+            color: var(--clr-muted);
+            flex: 1;
+        }
+
+        /* Match-balk: gevulde voortgangsbalk die laat zien hoe zeker
+           Pl@ntNet is van de match. De gevulde breedte komt uit een
+           CSS custom property --p (in JS gezet als inline style).
+           - isolation: isolate maakt een eigen stacking context zodat
+             ::before met z-index:-1 binnen de balk blijft.
+           Bronnen:
+           - https://developer.mozilla.org/en-US/docs/Web/CSS/--*
+           - https://developer.mozilla.org/en-US/docs/Web/CSS/isolation */
+        .resultaten .balk {
+            position: relative;
+            isolation: isolate;
+            margin: 0 0.8rem 0.8rem;
+            height: 22px;
+            background: var(--clr-bg-subtle);
+            border-radius: var(--radius-pill);
+            overflow: hidden;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            font-size: var(--fs--2);
+            font-weight: 700;
+            color: var(--clr-primary);
+        }
+
+        .resultaten .balk::before {
+            content: "";
+            position: absolute;
+            inset: 0 auto 0 0;
+            width: var(--p, 0%);
+            background: var(--clr-accent);
+            z-index: -1;
+            transition: width 0.4s ease;
+        }
+    }
+</style>

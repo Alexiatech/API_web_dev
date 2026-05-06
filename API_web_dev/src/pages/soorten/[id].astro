@@ -1,0 +1,22 @@
+---
+// /soorten/[id] - dunne wrapper. Alle logica + styling zit in PlantDetail.
+import Header from "../../components/Header.astro";
+import PlantDetail from "../../components/PlantDetail.astro";
+
+const { id } = Astro.params;
+---
+
+<!doctype html>
+<html lang="nl">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="stylesheet" href="/styles/global.css" />
+        <title>Plant details</title>
+    </head>
+    <body>
+        <PlantDetail id={id} />
+        <Header />
+    </body>
+</html>

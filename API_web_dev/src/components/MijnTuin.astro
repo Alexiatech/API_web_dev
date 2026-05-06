@@ -1,0 +1,420 @@
+---
+// MijnTuin component - toont planten die de gebruiker heeft opgeslagen
+// in localStorage. SSR rendert alleen de skelet-HTML; het script vult
+// de lijst client-side in. deze staat in (tuin.js)
+//
+//
+//
+// Bronnen:
+// - Custom events (view-changed) zoals afgehandeld in Layout.astro:
+//   https://developer.mozilla.org/en-US/docs/Web/API/CustomEvent
+// - storage event voor sync tussen tabs:
+//   https://developer.mozilla.org/en-US/docs/Web/API/Window/storage_event
+---
+
+<section class="tuin">
+    <h1>My Garden</h1>
+    <p class="intro">The plants you keep at home.</p>
+
+    <p class="leeg">
+        You haven't saved any plants yet.
+        Scan or search for a plant to add one.
+    </p>
+
+    <!-- Stats balk: kort overzicht van totaal aantal planten, hoeveel
+         er water nodig hebben, en wanneer de eerstvolgende waterbeurt is.
+         Wordt client-side gevuld; verborgen als de tuin leeg is. -->
+    <ul class="stats" hidden>
+        <li>
+            <p><strong data-stat="totaal">0</strong></p>
+            <span>plants</span>
+        </li>
+        <li>
+          <p><strong data-stat="dorstig">0</strong></p>
+            <span>need water</span>
+        </li>
+        <li>
+            <p><strong data-stat="volgende">dash;</strong></p>
+            <span>next</span>
+        </li>
+    </ul>
+
+    <ul class="plant-lijst" hidden>
+        <!-- Wordt client-side gevuld door het script hieronder -->
+    </ul>
+</section>
+
+
+<script>
+    import {
+        laden,          // ← tuin.js: leest alle planten uit localStorage
+        verwijderen,    // ← tuin.js: verwijdert een plant op basis van id
+        markeerWater,   // ← tuin.js: slaat op dat een plant water heeft gehad
+        vraagtWater,    // ← tuin.js: checkt of een plant water nodig heeft
+        dagenSindsWater, // ← tuin.js: berekent dagen sinds laatste waterbeurt
+    } from "../lib/tuin.js";
+
+    const lijstEl = document.querySelector(".tuin .plant-lijst");
+    const leegEl = document.querySelector(".tuin .leeg");
+    const statsEl = document.querySelector(".tuin .stats");
+    const statTotaal = statsEl.querySelector('[data-stat="totaal"]'); // → vindt het totaal element van de planten
+    const statDorstig = statsEl.querySelector('[data-stat="dorstig"]'); // → vindt het dorstig element
+    const statVolgende = statsEl.querySelector('[data-stat="volgende"]'); // → vindt het volgende planten die water moeten hebben
+
+    // Inline SVG water-druppel (Lucide). Inline zodat 'ie meekomt met
+    // currentColor en we 'm via CSS kunnen kleuren.
+    // Bron: https://lucide.dev/icons/droplet
+    const DRUPPEL_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"></path></svg>`;
+
+    // Bereken de drie cijfers voor de stats balk: totaal, hoeveel
+    // water nodig hebben, en hoeveel dagen tot de eerstvolgende
+    // niet-dorstige plant water vraagt. We tonen de "volgende" alleen
+    // voor planten die NIET al dorstig zijn - dorstig staat al apart.
+    function bouwStats(planten) {
+        const dorstig = planten.filter(vraagtWater).length;
+
+        const dagenTotLijst = planten
+            .filter((p) => !vraagtWater(p))
+            .map((p) => {
+                const dagenSinds = dagenSindsWater(p);
+                const interval = p.interval_dagen ?? 7;
+                return dagenSinds === null
+                    ? interval
+                    : Math.max(0, interval - dagenSinds);
+            });
+
+        let volgende;
+        if (dagenTotLijst.length === 0) {
+            // Alle planten zijn dorstig (of er zijn er geen meer over)
+            volgende = ""; // em dash
+        } else {
+            const min = Math.min(...dagenTotLijst);
+            if (min === 0) volgende = "today";
+            else if (min === 1) volgende = "1d";
+            else volgende = `${min}d`;
+        }
+
+        return { totaal: planten.length, dorstig, volgende };
+    }
+
+    function rendeer() {
+        const planten = laden(); // ← tuin.js
+
+        if (planten.length === 0) {
+            leegEl.hidden = false;
+            lijstEl.hidden = true;
+            statsEl.hidden = true;
+            lijstEl.innerHTML = "";
+            return;
+        }
+
+        leegEl.hidden = true;
+        lijstEl.hidden = false;
+        statsEl.hidden = false;
+
+        // Stats invullen. data-state="alert" markeert het dorstig-cijfer
+        // als > 0 zodat we het via CSS in de accent-kleur kunnen zetten.
+        const stats = bouwStats(planten);
+        statTotaal.textContent = stats.totaal;
+        statDorstig.textContent = stats.dorstig;
+        statDorstig.dataset.state = stats.dorstig > 0 ? "alert" : "ok";
+        statVolgende.textContent = stats.volgende;
+
+        // Sorteer: dorstige planten eerst, dan op opgeslagen_op (nieuwste).
+        // Dorstige planten bovenaan zodat de gebruiker ze direct ziet.
+        const gesorteerd = [...planten].sort((a, b) => {
+            const aDorstig = vraagtWater(a) ? 1 : 0;
+            const bDorstig = vraagtWater(b) ? 1 : 0;
+            if (aDorstig !== bDorstig) return bDorstig - aDorstig;
+            return (b.opgeslagen_op ?? 0) - (a.opgeslagen_op ?? 0);
+        });
+
+        lijstEl.innerHTML = gesorteerd
+            .map((p) => {
+                const naam = p.common_name ?? p.scientific_name ?? "Unknown";
+                const foto = p.image_url
+                    ? `<img src="${p.image_url}" alt="${naam}" loading="lazy" />`
+                    : `<div class="geen-foto">No photo</div>`;
+
+                const dorstig = vraagtWater(p);
+                const dagenSinds = dagenSindsWater(p);
+
+                // Feedforward tekst: aantal dagen tot de volgende water-
+                // beurt. Dorstig (of nog nooit water gehad) → "Water now".
+                // 1 dag → "Water tomorrow", anders "Water in N days".
+                const interval = p.interval_dagen ?? 7;
+                const dagenTot =
+                    dagenSinds === null
+                        ? 0
+                        : Math.max(0, interval - dagenSinds);
+
+                let waterTekst;
+                if (dorstig) {
+                    waterTekst = "Water now";
+                } else if (dagenTot === 1) {
+                    waterTekst = "Water tomorrow";
+                } else {
+                    waterTekst = `Water in ${dagenTot} days`;
+                }
+
+                // Tooltip op de druppel toont aanvullende info (laatst
+                // water gegeven), zodat we op de kaart zelf alleen de
+                // kort, actiegerichte feedforward laten zien.
+                const druppelTitel = dorstig
+                    ? "Mark as watered"
+                    : dagenSinds === 0
+                        ? "Watered today"
+                        : `Watered ${dagenSinds} day${dagenSinds === 1 ? "" : "s"} ago`;
+
+                return `<li class="plant-item${dorstig ? " dorstig" : ""}">
+                    <a href="/soorten/${p.id}">
+                        ${foto}
+                        <span class="plant-naam">${naam}</span>
+                        <span class="plant-jaar water-tekst">${waterTekst}</span>
+                    </a>
+                    <button class="verwijder" type="button" data-id="${p.id}" aria-label="Remove ${naam}">×</button>
+                    <button class="water-druppel" type="button" data-id="${p.id}" aria-label="${druppelTitel}" title="${druppelTitel}">${DRUPPEL_SVG}</button>
+                </li>`;
+            })
+            .join("");
+    }
+
+    // Klikken op kaart: ofwel verwijder-knop (×), ofwel water-druppel.
+    // Event delegation zodat we niet bij elke render opnieuw listeners
+    // hoeven te koppelen.
+    // Bron: https://developer.mozilla.org/en-US/docs/Learn/JavaScript/Building_blocks/Events#event_delegation
+    lijstEl.addEventListener("click", (event) => {
+        const verwijderKnop = event.target.closest(".verwijder"); // ← tuin.js
+        const druppel = event.target.closest(".water-druppel"); // ← tuin.js
+        if (!verwijderKnop && !druppel) return;
+
+        // Voorkom dat de klik doorvalt naar de <a> eronder
+        event.preventDefault();
+
+        if (verwijderKnop) {
+            verwijderen(Number(verwijderKnop.dataset.id));
+        } else if (druppel) {
+            markeerWater(Number(druppel.dataset.id));
+        }
+        rendeer();
+    });
+
+    // Re-renderen wanneer de gebruiker naar #tuin navigeert (Layout.astro
+    // dispatcht "view-changed"). Zo zien we direct de nieuwste status,
+    // ook als er net iets is opgeslagen op een andere view.
+    window.addEventListener("view-changed", (event) => {
+        if (event.detail?.view === "tuin") rendeer();
+    });
+
+
+    // Initiële render bij paginalaad.
+    rendeer();
+</script>
+
+
+<style is:global>
+    /* is:global omdat de kaartjes (en het verwijder-knopje) client-side
+       via innerHTML in het script worden aangemaakt - die elementen
+       krijgen geen Astro scope-attribute, dus scoped CSS zou er niet bij.
+       Bron: https://docs.astro.build/en/guides/styling/#global-styles */
+
+    /* Alleen MijnTuin-specifieke styling. De kaartjes erven hun layout
+       van .plant-lijst / .plant-item uit SoortenLijst.astro (global). */
+
+    .tuin {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 1.5rem 1rem 140px;
+        display: grid;
+        gap: 1rem;
+    }
+
+    .tuin h1 {
+        text-align: center;
+        margin: 1rem 0 0;
+        color: var(--clr-primary);
+        font-size: var(--fs-2);
+    }
+
+    .tuin .intro {
+        text-align: center;
+        margin: 0;
+        color: var(--clr-muted);
+    }
+
+    .tuin .leeg {
+        text-align: center;
+        background: var(--clr-white);
+        border-radius: var(--radius-md);
+        padding: 2rem 1.5rem;
+        box-shadow: 0 4px 12px var(--clr-shadow);
+        line-height: 1.5;
+        color: var(--clr-muted);
+        margin: 0;
+    }
+
+
+    .plant-lijst {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+
+
+ 
+
+    
+    .tuin .plant-lijst {
+        grid-template-columns: repeat(auto-fit, minmax(220px, 280px));
+        justify-content: center;
+    }
+
+    /* Stats balk: 3 cijfers naast elkaar in een kaart. Eén grid met drie
+       kolommen, elke <li> stapelt cijfer + label verticaal via flex.
+       Hidden override op .stats[hidden] omdat we 'm display:grid geven.
+       Bron: https://developer.mozilla.org/en-US/docs/Web/CSS/grid-template-columns */
+    .tuin .stats {
+        list-style: none;
+        margin: 0;
+        padding: 1rem 0.75rem;
+        background: var(--clr-white);
+        border-radius: var(--radius-md);
+        box-shadow: 0 4px 12px var(--clr-shadow);
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.5rem;
+    }
+
+    .tuin .stats[hidden] {
+        display: none;
+    }
+
+    .tuin .stats li {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.15rem;
+        text-align: center;
+        /* Verticale scheidingslijn tussen de drie stats. De laatste krijgt
+           geen rand zodat de balk netjes afloopt aan de rechterkant. */
+        border-right: 1px solid var(--clr-border);
+    }
+
+    .tuin .stats li:last-child {
+        border-right: none;
+    }
+
+    .tuin .stats strong {
+        font-size: var(--fs-1);
+        font-weight: 700;
+        color: var(--clr-primary);
+        line-height: 1.1;
+    }
+
+    /* Bij dorstig > 0: het cijfer in accent-kleur zodat 'ie meteen opvalt.
+       data-state wordt door het script gezet. */
+    .tuin .stats strong[data-state="alert"] {
+        color: var(--clr-accent-dark);
+    }
+
+    .tuin .stats span {
+        font-size: var(--fs--2);
+        color: var(--clr-muted);
+        text-transform: uppercase;
+    }
+
+    /* .plant-item is position: static in SoortenLijst - hier moet 'ie
+       relative zodat de absolute verwijder-knop binnen de kaart valt. */
+    .tuin .plant-item {
+        position: relative;
+    }
+
+    /* Verwijder-knop linksboven op het kaartje. Default verstopt; verschijnt
+       wanneer je over het kaartje hovert of de knop focused (keyboard).
+       Position absolute zodat 'ie boven de <a> hangt. preventDefault in de
+       listener voorkomt dat de klik doorvalt naar de link eronder.
+       Bron: https://developer.mozilla.org/en-US/docs/Web/CSS/:focus-visible */
+    .tuin .verwijder {
+        position: absolute;
+        top: 8px;
+        left: 8px;
+        width: 28px;
+        height: 28px;
+        border: none;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, 0.55);
+        color: var(--clr-white);
+        font-size: 18px;
+        line-height: 1;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1;
+
+        opacity: 0;
+        transition: opacity 0.2s ease, background 0.2s ease;
+    }
+
+    .tuin .plant-item:hover .verwijder,
+    .tuin .verwijder:focus-visible {
+        opacity: 1;
+    }
+
+    .tuin .verwijder:hover {
+        background: rgba(0, 0, 0, 0.8);
+    }
+
+    /* Touch-apparaten hebben geen hover - daar blijft de knop altijd
+       zichtbaar zodat 'ie nog te bereiken is.
+       Bron: https://developer.mozilla.org/en-US/docs/Web/CSS/@media/hover */
+    @media (hover: none) {
+        .tuin .verwijder {
+            opacity: 1;
+        }
+    }
+
+    /* Water-druppel rechtsboven op het kaartje. Default subtiel grijs
+       cirkeltje, altijd zichtbaar (anders mist de gebruiker de status).
+       Als de plant water vraagt: oranje accent + zachte pulse animatie.
+       Klik = markeerWater → kaart verspringt naar onderaan. */
+    .tuin .water-druppel {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        width: 28px;
+        height: 28px;
+        border: none;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.9);
+        color: var(--clr-muted);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1;
+        transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    }
+
+
+    /* Plant heeft water nodig: druppel wordt accent-oranje + de hele
+       kaart krijgt een dunne accent-rand zodat 'ie opvalt in het grid. */
+    .tuin .plant-item.dorstig {
+        outline: 2px solid var(--clr-accent);
+        outline-offset: -2px;
+    }
+
+    .tuin .plant-item.dorstig .water-druppel {
+        background: var(--clr-accent);
+        color: var(--clr-white);
+        animation: water-pulse 1.6s ease-in-out infinite;
+    }
+
+
+    @keyframes water-pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.15); }
+    }
+
+</style>

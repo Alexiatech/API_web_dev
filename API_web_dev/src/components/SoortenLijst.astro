@@ -1,0 +1,302 @@
+---
+// SoortenLijst component - lijst van planten uit Trefle met zoekbalk + sorteer.
+// Wordt ingeladen vanuit src/pages/soorten.astro. Alle logica + styling zit hier,
+// zodat de page zelf alleen maar een dunne wrapper is.
+
+const TOKEN = import.meta.env.PUBLIC_TREFLE_TOKEN;
+
+// Haal filter waardes uit de URL (?q=...&sorteer=...)
+const url = new URL(Astro.request.url);
+const q = url.searchParams.get("q") ?? "";
+const sorteer = url.searchParams.get("sorteer") ?? "";
+
+// Map de sorteer keuze naar Trefle's order parameter
+function sorteerParam(keuze) {
+    switch (keuze) {
+        case "jaar-oud":
+            return "order[year]=asc";
+        case "jaar-nieuw":
+            return "order[year]=desc";
+        case "a-z":
+            return "order[common_name]=asc";
+        default:
+            return "";
+    }
+}
+
+// Bouw de Trefle URL
+function bouwApiUrl() {
+    const params = new URLSearchParams();
+    params.set("token", TOKEN);
+
+    const sortDeel = sorteerParam(sorteer);
+
+    let base;
+    if (q) {
+        params.set("q", q);
+        base = "https://trefle.io/api/v1/plants/search";
+    } else {
+        base = "https://trefle.io/api/v1/plants";
+    }
+
+    const queryString = params.toString() + (sortDeel ? `&${sortDeel}` : "");
+    return `${base}?${queryString}`;
+}
+
+const response = await fetch(bouwApiUrl());
+const data = await response.json();
+const planten = data.data ?? [];
+
+const heeftFilters = q || sorteer;
+---
+
+<main class="soorten-layout">
+    <h1 class="titel">Species</h1>
+
+    <form class="filter-bar" method="get">
+        <div class="filters">
+            <label class="filter">
+                <span class="filter-label">Search</span>
+                <input
+                    type="search"
+                    name="q"
+                    value={q}
+                    placeholder="Search for a flower..."
+                />
+            </label>
+
+            <label class="filter">
+                <span class="filter-label">Sort</span>
+                <select name="sorteer">
+                    <option value="">Default</option>
+                    <option value="jaar-oud" selected={sorteer === "jaar-oud"}>
+                        Oldest → Newest
+                    </option>
+                    <option value="jaar-nieuw" selected={sorteer === "jaar-nieuw"}>
+                        Newest → Oldest
+                    </option>
+                    <option value="a-z" selected={sorteer === "a-z"}>
+                        Name (A-Z)
+                    </option>
+                </select>
+            </label>
+        </div>
+
+        <div class="filter-acties">
+            <button type="submit">Search</button>
+            {heeftFilters && (
+                <a href="/soorten" class="filter-reset">Reset</a>
+            )}
+        </div>
+    </form>
+
+    {planten.length === 0 ? (
+        <p class="geen-resultaten">No plants found.</p>
+    ) : (
+        <ul class="plant-lijst">
+            {planten.map((plant) => (
+                <li class="plant-item">
+                    <a href={`/soorten/${plant.id}`}>
+                        {plant.image_url ? (
+                            <img
+                                src={plant.image_url}
+                                alt={plant.common_name ?? plant.scientific_name}
+                            />
+                        ) : (
+                            <div class="geen-foto">No photo</div>
+                        )}
+                        <span class="plant-naam">
+                            {plant.common_name ?? plant.scientific_name}
+                        </span>
+                      
+                    </a>
+                </li>
+            ))}
+        </ul>
+    )}
+</main>
+
+<style is:global>
+    /* Tokens + body styling staan in public/styles/global.css */
+
+    @layer reset, layout, components;
+
+    @layer reset {
+        .soorten-layout ul { list-style: none; padding: 0; margin: 0; }
+    }
+
+    @layer layout {
+        .soorten-layout {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 1rem 1rem 140px;
+            display: grid;
+            gap: 1.5rem;
+        }
+
+        .titel {
+            text-align: center;
+            margin: 1rem 0 0;
+            color: var(--clr-primary);
+            font-size: var(--fs-2);
+        }
+    }
+
+    @layer components {
+        @scope (.filter-bar) {
+            :scope {
+                background: var(--clr-white);
+                border-radius: var(--radius-lg);
+                box-shadow: 0 4px 12px var(--clr-shadow);
+                padding: 1rem;
+                display: grid;
+                gap: 0.75rem;
+            }
+
+            .filters {
+                display: flex;
+                gap: 0.5rem;
+                flex-wrap: wrap;
+            }
+
+            .filter {
+                display: grid;
+                gap: 0.25rem;
+                flex: 1;
+            }
+
+            input[type="search"],
+            select {
+                width: 100%;
+                padding: 0.75rem 1rem;
+                border: 1px solid var(--clr-border);
+                border-radius: var(--radius-pill);
+                font-size: var(--fs-0);
+                font-family: inherit;
+                box-sizing: border-box;
+                outline: none;
+                background: var(--clr-white);
+            }
+
+            input[type="search"]:focus,
+            select:focus {
+                border-color: var(--clr-primary);
+            }
+
+            .filter-acties {
+                display: flex;
+                gap: 0.5rem;
+                align-items: center;
+            }
+
+            button {
+                flex: 1;
+                padding: 0.7rem 1.2rem;
+                border: none;
+                border-radius: var(--radius-pill);
+                background-color: var(--clr-primary);
+                color: var(--clr-white);
+                font-size: var(--fs-0);
+                font-weight: 500;
+                cursor: pointer;
+
+                &:hover { background-color: var(--clr-primary-dark); }
+            }
+
+            .filter-reset {
+                padding: 0.7rem 1.2rem;
+                text-decoration: none;
+                color: var(--clr-muted);
+                font-size: var(--fs--1);
+            }
+        }
+
+        .plant-lijst {
+            container-type: inline-size;
+            container-name: lijst;
+
+            display: grid;
+            gap: var(--gap);
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        }
+
+        @container lijst (width < 400px) {
+            .plant-lijst {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @container lijst (width > 700px) {
+            .plant-lijst {
+                grid-template-columns: repeat(4, 1fr);
+            }
+        }
+
+        .plant-item {
+            background: var(--clr-white);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            box-shadow: 0 4px 12px var(--clr-shadow);
+            transition: transform 0.2s ease;
+
+            display: grid;
+            grid-template-rows: 130px auto auto;
+
+            &:hover { transform: translateY(-4px); }
+        }
+
+        .plant-item a {
+            display: grid;
+            grid-template-rows: subgrid;
+            grid-row: span 3;
+
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .plant-item img,
+        .plant-item .geen-foto {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .geen-foto {
+            background-color: var(--clr-bg-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--clr-muted);
+            font-size: var(--fs--1);
+        }
+
+        .plant-naam {
+            padding: 0.8rem 0.8rem 0.2rem;
+            text-align: center;
+            font-weight: 500;
+            font-size: var(--fs--1);
+        }
+
+        .plant-jaar {
+            padding: 0 0.8rem 0.8rem;
+            text-align: center;
+            font-size: var(--fs--2);
+            color: var(--clr-muted);
+        }
+
+        .badge {
+            background: var(--clr-primary);
+            color: var(--clr-white);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: var(--fs--2);
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .geen-resultaten {
+            text-align: center;
+            color: var(--clr-muted);
+        }
+    }
+</style>

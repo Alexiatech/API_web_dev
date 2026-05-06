@@ -1,0 +1,41 @@
+---
+// Bewegende bloemen achtergrond.
+// Gebruikt /public/bloem-achtergrond.jpg (het getekende patroon).
+// De CSS animatie verschuift background-position zodat het patroon traag
+// van links-onder naar rechts-boven lijkt te drijven.
+---
+
+<div class="bloem-achtergrond" aria-hidden="true"></div>
+
+<style>
+    .bloem-achtergrond {
+  
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: -1;
+
+        /* het getekende patroon als achtergrond, oneindig herhalend */
+        background-image: url("/bloem-achtergrond.jpg");
+        background-repeat: repeat;
+        background-size: 900px auto; 
+        opacity: 0.1;
+
+     
+        animation: --bloem-drijf 60s linear infinite;
+    }
+
+
+    @keyframes --bloem-drijf {
+        from {
+            background-position: 0 0;
+        }
+        to {
+            background-position: 800px -800px;
+        }
+    }
+
+ 
+</style>
